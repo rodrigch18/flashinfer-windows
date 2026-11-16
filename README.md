@@ -15,6 +15,99 @@ High-Performance GPU Kernels for Inference
 [![Build Status](https://ci.tlcpack.ai/job/flashinfer-ci/job/main/badge/icon)](https://ci.tlcpack.ai/job/flashinfer-ci/job/main/)
 [![Documentation](https://github.com/flashinfer-ai/flashinfer/actions/workflows/build-doc.yml/badge.svg)](https://github.com/flashinfer-ai/flashinfer/actions/workflows/build-doc.yml)
 
+## FlashInfer for Windows
+
+Native Windows x64 build of FlashInfer (MSVC + CUDA 13), maintained as the companion of **[vLLM for Windows](https://github.com/rodrigch18/vllm-windows/tree/vllm-for-windows)**, which pins the FlashInfer version built here.
+
+### How this fork is organized
+
+- This repository is a fork of the official [flashinfer-ai/flashinfer](https://github.com/flashinfer-ai/flashinfer). `main` tracks the latest upstream `main` and is never modified.
+- The `flashinfer-for-windows` branch is an official upstream release tag plus exactly **one** squashed Windows commit, so the whole port can be reviewed in a single diff.
+- The Windows changes started from [SystemPanic/flashinfer-windows](https://github.com/SystemPanic/flashinfer-windows) and were audited: only changes needed to build and run on Windows are kept, and Linux behavior is identical to upstream.
+
+### How this fork differs
+
+| | SystemPanic/flashinfer-windows | This fork |
+|---|---|---|
+| FlashInfer | 0.7.0.post1 (latest release) | **0.7.3**, the version vLLM 0.34 pins |
+| Base | FlashInfer source with Windows changes in several commits | **Official upstream release tag + one Windows commit** |
+
+Windows fixes in this fork, in addition to the ported MSVC fixes:
+
+- JIT works without administrator rights or Developer Mode: directory junctions or file copies replace symlinks.
+- JIT object file names are shortened so nvcc output paths stay under the Windows 260-character limit.
+- Kernels new in 0.7.2 that MSVC rejected are ported (preprocessor directives inside macro arguments, GCC-only lambda attributes in the DeepSeek V4.1 sparse MLA kernels).
+- The NCCL-only `dcp_lse_reduce` module is skipped on Windows (NCCL has no official Windows build).
+- Release JIT builds define `NDEBUG` again, and compiler flags keep a stable order, so ninja does not rebuild modules for no reason.
+- `FLASHINFER_NINJA_KEEP_GOING=1` lets a build report every failing kernel in one run instead of stopping at the first.
+
+### Windows instructions:
+
+#### Installing a release:
+
+Each release of this fork is the source code at its tag (the `flashinfer-for-windows` commit for that FlashInfer version). A release may also attach prebuilt wheels built for one specific environment, listed in its release notes (Python, torch, CUDA and GPU architecture). If they match your environment, install them with `pip install`; otherwise build the wheels from source as described below.
+
+#### Building from source:
+
+##### Pre-requisites
+
+A Visual Studio 2019 or newer is required to launch the compiler x64 environment. The installation path is referred in the instructions as VISUAL_STUDIO_INSTALL_PATH. For example, for Visual Studio 2022 default installation, replace VISUAL_STUDIO_INSTALL_PATH with C:\Program Files\Microsoft Visual Studio\2022\Community
+
+CUDA path will be found automatically if you have the bin folder in your PATH, or have the CUDA installation path settled on well-known environment vars like CUDA_ROOT, CUDA_HOME or CUDA_PATH.
+
+If none of these are present, make sure to set the environment variable before starting the build:
+set CUDA_HOME=CUDA_INSTALLATION_PATH
+
+##### IMPORTANT FOR ALL CUDA 13 BUILDS:
+CUDA 13 `cuda.h` declares `CUtensorMap` with 128 byte alignment (still the case in CUDA 13.5). MSVC does not support passing over-aligned types like alignas(128) by value as function parameters (`error C2719`), so the header must be patched to use 64 byte alignment under MSVC. Use `fix_cuda_13_align.py` from [vLLM for Windows](https://github.com/rodrigch18/vllm-windows/blob/vllm-for-windows/fix_cuda_13_align.py): in an elevated command line (cmd.exe as Administrator), set `CUDA_HOME` to the CUDA toolkit you build with and run `python fix_cuda_13_align.py` once. Repeat after installing or reinstalling any CUDA 13 toolkit.
+
+##### Instructions
+
+1. Open a Command Line (cmd.exe)
+2. Execute ```VISUAL_STUDIO_INSTALL_PATH\VC\Auxiliary\Build\vcvarsall.bat x64```
+3. **Clone this repository from the flashinfer-for-windows branch (NOT MAIN): ```cd C:\ & git clone --single-branch --branch flashinfer-for-windows --recurse-submodules https://github.com/rodrigch18/flashinfer-windows.git```**
+4. Change the working directory to the cloned repository path, for example: ```cd C:\flashinfer-windows```
+5. Set the following environment variables:
+```
+set DISTUTILS_USE_SDK=1
+#(replace 10 with your desired cpu threads to use in parallel to speed up compilation)
+set MAX_JOBS=10
+
+#(Optional) To build only against your specific GPU CUDA arch (to speed up compilation),
+#replace YOUR_GPU_ARCH with your GPU arch number. For example, for RTX 50XX: set TORCH_CUDA_ARCH_LIST=12.0
+set TORCH_CUDA_ARCH_LIST=YOUR_GPU_ARCH
+set FLASHINFER_CUDA_ARCH_LIST=YOUR_GPU_ARCH
+
+#If sccache is installed (e.g. via rustup), disable it for the build:
+set RUSTC_WRAPPER=
+```
+
+6. Build & install:
+```
+#For JIT wheel:
+python -m build --no-isolation --wheel
+#Replace FLASHINFERVERSION with the corresponding flashinfer version, for example: 0.7.3
+pip install dist\flashinfer_python-FLASHINFERVERSION-py3-none-any.whl
+
+#For cache (AOT) wheel:
+#replace YOUR_GPU_ARCH with your GPU arch, using the family-specific "f" suffix on Blackwell. For example, for RTX 50XX: 12.0f
+set FLASHINFER_JIT_CACHE_PROVIDER_ARCH=YOUR_GPU_ARCH
+set FLASHINFER_JIT_CACHE_PROVIDER_ARCHS=YOUR_GPU_ARCH
+#(Optional) keep compiling after a failure to see every failing kernel at once:
+set FLASHINFER_NINJA_KEEP_GOING=1
+python -m build --no-isolation --wheel flashinfer-jit-cache-provider
+python -m build --no-isolation --wheel flashinfer-jit-cache
+pip install flashinfer-jit-cache-provider\dist\flashinfer_jit_cache-FLASHINFERVERSION-cp39-abi3-win_amd64.whl flashinfer-jit-cache\dist\flashinfer_jit_cache-FLASHINFERVERSION-cp39-abi3-win_amd64.whl
+
+#For Cubin wheel (platform independent, published by FlashInfer):
+pip install flashinfer-cubin==FLASHINFERVERSION --extra-index-url https://flashinfer.ai/whl/
+```
+flashinfer-python, flashinfer-jit-cache and flashinfer-cubin must have exactly the same version, otherwise the mismatched package is ignored.
+
+7. Build folder cleaning: Due to 260 chars path constraints on Windows, a custom build folder is generated at `C:\_fib` by default, and JIT-compiled kernels are cached under `C:\_fij`. To clean the build folder after wheel generation, remove it manually.
+
+---
+
 **FlashInfer** is a library and kernel generator for inference that delivers state-of-the-art performance across diverse GPU architectures. It provides unified APIs for attention, GEMM, and MoE operations with multiple backend implementations including FlashAttention-2/3, cuDNN, CUTLASS, and TensorRT-LLM.
 
 ## Why FlashInfer?

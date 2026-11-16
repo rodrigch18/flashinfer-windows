@@ -18,6 +18,7 @@ import functools
 from collections import Counter, OrderedDict
 import logging
 import os
+import sys
 import threading
 import warnings
 import weakref
@@ -3139,7 +3140,9 @@ def fp8_gemm_sm100(
     runner(inputs=inputs, tactic=tactic)
 
 
-def _create_cutlass_fp4_gemm_module(module, op_name: str, tuner_name: str):
+def _create_cutlass_fp4_gemm_module(
+    module, op_name: str, tuner_name: str, exclude_stream_k: bool = False
+):
     """Helper function to create cutlass FP4 GEMM module."""
 
     def cutlass_fp4_gemm_runner():
@@ -3152,7 +3155,14 @@ def _create_cutlass_fp4_gemm_module(module, op_name: str, tuner_name: str):
                 inputs: List[torch.Tensor],
                 profile: OptimizationProfile,
             ) -> List[int]:
-                return list(range(module.fp4_gemm_tactic_num()))
+                tactics = list(range(module.fp4_gemm_tactic_num()))
+                # Windows Fix: SM120 getConfigs() lists 8 tiles x (DP swap, DP,
+                # StreamK swap, StreamK). StreamK zeroes its workspace with
+                # memsets that stall CUDA graph replay on Windows; profiled
+                # alone they look as fast as DP, so keep them out of autotuning.
+                if exclude_stream_k and len(tactics) == 32:
+                    tactics = [t for t in tactics if t % 4 < 2]
+                return tactics
 
             def forward(
                 self,
@@ -3214,7 +3224,10 @@ def get_gemm_sm120_module_cutlass_fp4():
     """Get the SM120/121 FP4 GEMM module."""
     module = gen_gemm_sm120_module_cutlass_fp4().build_and_load()
     return _create_cutlass_fp4_gemm_module(
-        module, "flashinfer::cutlass_fp4_gemm_sm120", "cutlass_fp4_gemm_sm120"
+        module,
+        "flashinfer::cutlass_fp4_gemm_sm120",
+        "cutlass_fp4_gemm_sm120",
+        exclude_stream_k=sys.platform == "win32",
     )
 
 

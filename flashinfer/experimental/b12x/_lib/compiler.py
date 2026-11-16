@@ -2536,7 +2536,10 @@ def _ensure_cute_compile_manifest(
 @contextmanager
 def _disk_cache_key_lock(cache_key: str):
     try:
-        import fcntl
+        try:
+            import fcntl
+        except ImportError:  # Windows Fix: no fcntl; emulated flock
+            from flashinfer import _fcntl_compat as fcntl
     except ImportError:
         yield
         return

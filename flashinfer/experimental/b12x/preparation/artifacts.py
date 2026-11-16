@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-import fcntl
+try:
+    import fcntl
+except ImportError:  # Windows Fix: no fcntl; emulated flock
+    from flashinfer import _fcntl_compat as fcntl
 import os
 import tempfile
 from contextlib import contextmanager

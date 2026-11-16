@@ -1,5 +1,8 @@
 # Manage Ahead-of-Time (AOT) compiled kernels
-import fcntl
+try:
+    import fcntl
+except ImportError:  # Windows Fix: no fcntl; emulated flock
+    from flashinfer import _fcntl_compat as fcntl
 import hashlib
 import logging
 import os

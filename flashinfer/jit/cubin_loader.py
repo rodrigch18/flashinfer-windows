@@ -20,6 +20,7 @@ import logging
 import os
 import pathlib
 import random
+import re
 from urllib.parse import urljoin
 import shutil
 import time
@@ -280,6 +281,68 @@ def get_artifact(
 get_cubin = get_artifact
 
 
+def _is_link(path: pathlib.Path) -> bool:
+    return path.is_symlink() or (os.name == "nt" and path.is_junction())
+
+
+def remove_link_or_path(path: pathlib.Path) -> None:
+    """Remove a symlink/junction (never its target), a file, or a directory."""
+    if _is_link(path) or path.is_file():
+        os.unlink(path)
+    elif path.exists():
+        shutil.rmtree(path)
+
+
+def link_path(link: pathlib.Path, target: pathlib.Path) -> None:
+    """Symlink ``link`` -> ``target``.
+
+    Windows only allows symlinks with Developer Mode or admin rights, so fall
+    back to a directory junction (no privilege needed) or a file copy.
+    """
+    try:
+        link.symlink_to(target, target_is_directory=target.is_dir())
+    except OSError:
+        if os.name != "nt":
+            raise
+        if target.is_dir():
+            import _winapi
+
+            _winapi.CreateJunction(str(target.resolve()), str(link))
+        else:
+            shutil.copy2(target, link)
+
+
+# Windows: the downloaded TRT-LLM-gen export headers declare TMA constants as
+# ``unsigned long`` (e.g. ``1UL << 35``), which assumes LP64. MSVC is LLP64
+# (``unsigned long`` is 32 bits), so those directories are copied instead of
+# linked and the constants widened to ``unsigned long long``. The marker file
+# records the original directory; checksums are verified against it.
+_WIN_LP64_MARKER = ".flashinfer_windows_lp64_copy"
+
+
+def _windows_needs_lp64_copy(target: pathlib.Path) -> bool:
+    return os.name == "nt" and (target / "trtllm" / "gen" / "CommonUtils.h").is_file()
+
+
+def _windows_lp64_copy_source(link: pathlib.Path) -> Union[str, None]:
+    marker = link / _WIN_LP64_MARKER
+    if os.name == "nt" and not _is_link(link) and marker.is_file():
+        return marker.read_text(encoding="utf-8").strip()
+    return None
+
+
+def _windows_make_lp64_copy(link: pathlib.Path, target: pathlib.Path) -> None:
+    shutil.copytree(target, link)
+    for header in link.rglob("*.h"):
+        text = header.read_bytes().decode("utf-8")
+        new = re.sub(r"\bunsigned long\b(?! long)", "unsigned long long", text)
+        new = re.sub(r"\b(\d+)UL\b", r"\1ULL", new)
+        if new != text:
+            header.write_bytes(new.encode("utf-8"))
+    # Written last: a copy without the marker is incomplete and gets redone.
+    (link / _WIN_LP64_MARKER).write_text(str(target.resolve()), encoding="utf-8")
+
+
 def ensure_symlink(
     link: Union[str, pathlib.Path], target: Union[str, pathlib.Path]
 ) -> None:
@@ -296,15 +359,19 @@ def ensure_symlink(
     lock_path = str(link) + ".lock"
     lock = filelock.FileLock(lock_path, timeout=60)
     with lock:
-        if link.is_symlink() or link.exists():
-            if link.is_symlink() and link.resolve() == target.resolve():
+        if _windows_needs_lp64_copy(target):
+            if _windows_lp64_copy_source(link) == str(target.resolve()):
+                return  # already a patched copy of this target
+            if _is_link(link) or link.exists():
+                remove_link_or_path(link)
+            _windows_make_lp64_copy(link, target)
+            return
+        if _is_link(link) or link.exists():
+            if _is_link(link) and link.resolve() == target.resolve():
                 return  # already correct
             # Stale symlink or directory from a previous version; remove it.
-            if link.is_symlink() or link.is_file():
-                link.unlink()
-            else:
-                shutil.rmtree(link)
-        link.symlink_to(target)
+            remove_link_or_path(link)
+        link_path(link, target)
 
 
 def verify_symlinked_headers(
@@ -319,6 +386,8 @@ def verify_symlinked_headers(
     symlink and its SHA-256 is compared against the hash from ``checksums.txt``.
     """
     symlink_path = pathlib.Path(symlink_path)
+    # Windows LP64 copy: verify the original headers it was made from.
+    lp64_source = _windows_lp64_copy_source(symlink_path)
     for header in headers:
         header_path = symlink_path / header
         expected_hash = get_meta_hash(checksums, header)
@@ -327,7 +396,8 @@ def verify_symlinked_headers(
                 f"Header {header} not found at {header_path}. "
                 f"Try clearing the cache: rm -rf {FLASHINFER_CUBIN_DIR}"
             )
-        actual_hash = hashlib.sha256(header_path.read_bytes()).hexdigest()
+        hashed_path = pathlib.Path(lp64_source) / header if lp64_source else header_path
+        actual_hash = hashlib.sha256(hashed_path.read_bytes()).hexdigest()
         if actual_hash != expected_hash:
             raise RuntimeError(
                 f"Header {header} at {header_path} has wrong checksum "

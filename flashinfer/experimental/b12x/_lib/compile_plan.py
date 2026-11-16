@@ -505,7 +505,10 @@ def serialized_compilations():
 def _locked_triton_compile(
     compile_fn, source, target=None, options=None, _env_vars=None
 ):
-    import fcntl
+    try:
+        import fcntl
+    except ImportError:  # Windows Fix: no fcntl; emulated flock
+        from flashinfer import _fcntl_compat as fcntl
     from pathlib import Path
     from triton.compiler.compiler import get_cache_manager
 

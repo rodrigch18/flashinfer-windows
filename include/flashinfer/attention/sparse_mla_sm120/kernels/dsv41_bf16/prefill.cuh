@@ -10,6 +10,15 @@
 #include "../../model/dsv41_layout.cuh"
 #include "resources.cuh"
 
+// MSVC (Windows host compiler) rejects GCC attributes on lambdas.
+#ifndef FLASHINFER_LAMBDA_ALWAYS_INLINE
+#if defined(_MSC_VER)
+#define FLASHINFER_LAMBDA_ALWAYS_INLINE
+#else
+#define FLASHINFER_LAMBDA_ALWAYS_INLINE __attribute__((always_inline))
+#endif
+#endif
+
 namespace flashinfer::sparse_mla_sm120::kernels::dsv41_bf16 {
 
 template <bool EXTRA_FP4, ModelType MT>
@@ -36,7 +45,7 @@ __device__ __forceinline__ void run_bf16_tiles(
                               : indices + (size_t)t * indices_stride_elems;
     if (tidx < R::CANDIDATES) sm.valid[tidx] = start + tidx < n ? ix[start + tidx] : -1;
     __syncthreads();
-    auto gather = [&](bool power_of_two) __attribute__((always_inline)) {
+    auto gather = [&](bool power_of_two) FLASHINFER_LAMBDA_ALWAYS_INLINE {
       static_assert((R::CANDIDATES * R::QK_VECTORS) % (2 * R::BLOCK_THREADS) == 0);
       for (int first = tidx; first < R::CANDIDATES * R::QK_VECTORS; first += 2 * R::BLOCK_THREADS) {
         uint64_t raw[2];
