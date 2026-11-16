@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlashInfer for Windows: install FlashInfer natively on Windows without WSL</title>
+<meta name="description" content="Install FlashInfer natively on Windows 10/11 without WSL. Prebuilt CUDA 13 wheels with precompiled kernels for RTX 50 series (Python 3.12/3.14), and build-from-source instructions for other NVIDIA GPUs.">
+<link rel="canonical" href="https://rodrigch18.github.io/flashinfer-windows/">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="website">
+<meta property="og:title" content="FlashInfer for Windows: install FlashInfer natively on Windows without WSL">
+<meta property="og:description" content="Prebuilt FlashInfer wheels for native Windows (CUDA 13, RTX 50 series), plus build-from-source instructions.">
+<meta property="og:url" content="https://rodrigch18.github.io/flashinfer-windows/">
+<meta name="twitter:card" content="summary">
+<meta name="color-scheme" content="light dark">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareSourceCode",
+  "name": "FlashInfer for Windows",
+  "description": "Native Windows (x64, MSVC, CUDA 13) port of the FlashInfer kernel library for LLM serving, without WSL.",
+  "codeRepository": "https://github.com/rodrigch18/flashinfer-windows",
+  "programmingLanguage": ["Python", "C++", "CUDA"],
+  "runtimePlatform": "Windows x64",
+  "license": "https://www.apache.org/licenses/LICENSE-2.0",
+  "version": "0.7.2.post1"
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {"@type": "Question", "name": "Can FlashInfer run on Windows?",
+     "acceptedAnswer": {"@type": "Answer", "text": "Yes. Upstream FlashInfer supports Linux only. FlashInfer for Windows is a native Windows build (MSVC + CUDA 13) that installs with pip and runs directly on Windows 10/11, without WSL."}},
+    {"@type": "Question", "name": "Why does pip install flashinfer-python fail or not work on Windows?",
+     "acceptedAnswer": {"@type": "Answer", "text": "The flashinfer-python package on PyPI is built for Linux: its JIT compilation assumes GCC, symlinks and Linux paths. Install the Windows wheels from the FlashInfer for Windows release instead, before installing anything that depends on FlashInfer."}},
+    {"@type": "Question", "name": "Which GPUs are supported?",
+     "acceptedAnswer": {"@type": "Answer", "text": "The precompiled kernel cache targets RTX 50 series (Blackwell, sm_120). The flashinfer_python wheel compiles kernels on first use for other NVIDIA GPUs supported by FlashInfer; you can also build all wheels from source for your GPU."}},
+    {"@type": "Question", "name": "Is this an official FlashInfer project?",
+     "acceptedAnswer": {"@type": "Answer", "text": "No. It is a community fork of flashinfer-ai/flashinfer and is not affiliated with or endorsed by the FlashInfer project. Each release is the upstream release tag plus one reviewable Windows commit."}}
+  ]
+}
+</script>
+<style>
+:root {
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --card: #f6f8fa; --border: #d1d9e0;
+  --accent: #0969da; --accent-fg: #ffffff; --code-bg: #0d1117; --code-fg: #e6edf3;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --card: #151b23; --border: #3d444d;
+    --accent: #4493f8; --accent-fg: #0d1117; --code-bg: #010409; --code-fg: #e6edf3;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+main, header, footer { max-width: 880px; margin: 0 auto; padding: 0 16px; }
+header { padding-top: 56px; padding-bottom: 24px; }
+h1 { font-size: clamp(2rem, 5vw, 2.8rem); line-height: 1.15; margin: 0 0 12px; }
+h2 { font-size: 1.5rem; margin: 48px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.lead { font-size: 1.2rem; color: var(--muted); margin: 0 0 24px; }
+a { color: var(--accent); }
+.buttons { display: flex; flex-wrap: wrap; gap: 12px; }
+.btn { display: inline-block; padding: 10px 18px; border-radius: 8px; text-decoration: none; font-weight: 600;
+  border: 1px solid var(--border); color: var(--fg); background: var(--card); }
+.btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.callout { margin-top: 24px; background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--accent);
+  border-radius: 10px; padding: 12px 16px; }
+pre { position: relative; background: var(--code-bg); color: var(--code-fg); padding: 16px; border-radius: 10px;
+  overflow-x: auto; font-size: 0.85rem; line-height: 1.5; }
+code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
+p code, li code, td code { background: var(--card); border: 1px solid var(--border); padding: 1px 5px; border-radius: 5px; font-size: 0.88em; }
+.copy { position: absolute; top: 8px; right: 8px; font: 600 12px/1 inherit; padding: 6px 10px; border-radius: 6px;
+  border: 1px solid #3d444d; background: #151b23; color: #e6edf3; cursor: pointer; }
+table { border-collapse: collapse; width: 100%; font-size: 0.95rem; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
+th { background: var(--card); }
+details { border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; margin: 10px 0; background: var(--card); }
+summary { font-weight: 600; cursor: pointer; }
+.note { color: var(--muted); font-size: 0.92rem; }
+footer { margin-top: 64px; padding-top: 16px; padding-bottom: 40px; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>FlashInfer for Windows</h1>
+  <p class="lead">Install <a href="https://github.com/flashinfer-ai/flashinfer">FlashInfer</a>, the kernel library for LLM serving,
+    natively on Windows 10/11, without WSL. A native MSVC + CUDA 13 build with prebuilt wheels and precompiled kernels for RTX 50 series.</p>
+  <div class="buttons">
+    <a class="btn primary" href="https://github.com/rodrigch18/flashinfer-windows/releases/latest">Download wheels</a>
+    <a class="btn" href="#install">Install guide</a>
+    <a class="btn" href="https://github.com/rodrigch18/flashinfer-windows">GitHub repository</a>
+  </div>
+  <div class="callout"><strong>Using vLLM?</strong> Go to <a href="https://rodrigch18.github.io/vllm-windows/">vLLM for Windows</a>:
+    its install guide includes these FlashInfer wheels.</div>
+</header>
+
+<main>
+<h2 id="wheels">Prebuilt wheels (FlashInfer 0.7.2.post1)</h2>
+<table>
+  <tr><th>Wheel</th><th>Contents</th></tr>
+  <tr><td><code>flashinfer_python</code></td><td>FlashInfer Python package with the Windows JIT changes. Any NVIDIA GPU FlashInfer supports; kernels are compiled on first use.</td></tr>
+  <tr><td><code>flashinfer_jit_cache_sm120f</code></td><td>Precompiled (AOT) kernels for RTX 50 series (Blackwell, sm_120 family).</td></tr>
+  <tr><td><code>flashinfer_jit_cache</code></td><td>Meta package that registers the precompiled kernels.</td></tr>
+</table>
+<p>Built for Windows x64 with torch 2.14.1 (cu132) and the CUDA 13.5 toolkit. The wheels are Python-version independent and are tested with CPython 3.12 and 3.14.</p>
+
+<h2 id="requirements">Requirements</h2>
+<ul>
+  <li>Windows 10 or 11, x64, with an NVIDIA driver that supports CUDA 13.</li>
+  <li><a href="https://visualstudio.microsoft.com/downloads/">Visual Studio Build Tools</a> (C++ workload) and a
+    <a href="https://developer.nvidia.com/cuda-downloads">CUDA 13 toolkit</a>: kernels that are not in the precompiled cache are compiled at runtime.</li>
+  <li>Patch the toolkit's <code>cuda.h</code> once with
+    <a href="https://github.com/rodrigch18/vllm-windows/blob/vllm-for-windows/fix_cuda_13_align.py"><code>fix_cuda_13_align.py</code></a>
+    (CUDA 13 headers use an alignment MSVC rejects; see the
+    <a href="https://github.com/rodrigch18/flashinfer-windows/tree/flashinfer-for-windows#important-for-all-cuda-13-builds">README</a>).</li>
+</ul>
+
+<h2 id="install">Install</h2>
+<p>In a Python 3.12 or 3.14 virtual environment, install PyTorch first, then the Windows FlashInfer wheels. Install them
+  <em>before</em> anything that depends on FlashInfer, so pip does not pull the Linux-only <code>flashinfer-python</code> from PyPI.
+  <code>flashinfer-python</code>, <code>flashinfer-jit-cache</code> and <code>flashinfer-cubin</code> must be the same version.</p>
+<pre><code id="install-cmd"></code><button class="copy" type="button">Copy</button></pre>
+<p class="note">Checksums and release notes: <a href="https://github.com/rodrigch18/flashinfer-windows/releases/latest">latest release</a>.</p>
+
+<h2 id="source">Other GPUs: build from source</h2>
+<p>For GPUs other than RTX 50 series, <code>flashinfer_python</code> alone is expected to work, because its JIT compiles kernels
+  for the GPU it runs on (only RTX 50 series is tested). Or build all wheels,
+  including a precompiled cache for your GPU, by following the
+  <a href="https://github.com/rodrigch18/flashinfer-windows/tree/flashinfer-for-windows#building-from-source">build instructions</a>.</p>
+
+<h2 id="why">About this fork</h2>
+<ul>
+  <li><strong>Reviewable:</strong> each release is the official upstream release tag plus exactly one squashed Windows commit
+    (<a href="https://github.com/flashinfer-ai/flashinfer/compare/v0.7.2.post1...rodrigch18:flashinfer-windows:flashinfer-for-windows">single diff</a>).
+    Linux behavior is identical to upstream.</li>
+  <li><strong>Credits:</strong> the Windows changes started from <a href="https://github.com/SystemPanic/flashinfer-windows">SystemPanic/flashinfer-windows</a>
+    and were audited down to what Windows needs.</li>
+  <li><strong>No admin rights needed:</strong> JIT works without symlink privileges or Developer Mode and keeps paths under the 260-character limit.</li>
+  <li><strong>Companion of <a href="https://github.com/rodrigch18/vllm-windows">vLLM for Windows</a>:</strong> each release is the FlashInfer version that vLLM release pins.</li>
+</ul>
+
+<h2 id="faq">FAQ</h2>
+<details><summary>Can FlashInfer run on Windows?</summary>
+  <p>Yes. Upstream FlashInfer supports Linux only. This fork is a native Windows build (MSVC + CUDA 13) that installs with pip and runs directly on Windows 10/11.</p></details>
+<details><summary>Why does <code>pip install flashinfer-python</code> fail or not work on Windows?</summary>
+  <p>The PyPI package is built for Linux: its JIT compilation assumes GCC, symlinks and Linux paths. Install the Windows wheels from this fork's release instead, before anything that depends on FlashInfer.</p></details>
+<details><summary>Which GPUs are supported?</summary>
+  <p>The precompiled kernel cache targets RTX 50 series, the only tested GPU series. On other NVIDIA GPUs FlashInfer supports, <code>flashinfer_python</code> compiles kernels for your GPU on first use, or you can build the wheels from source for your GPU.</p></details>
+<details><summary>Is this an official FlashInfer project?</summary>
+  <p>No. It is a community fork and is not affiliated with or endorsed by the FlashInfer project. Report Windows-specific problems in
+  <a href="https://github.com/rodrigch18/flashinfer-windows/issues">this fork's issues</a>.</p></details>
+</main>
+
+<footer>
+  FlashInfer for Windows is a community fork of <a href="https://github.com/flashinfer-ai/flashinfer">flashinfer-ai/flashinfer</a>
+  (Apache-2.0), not affiliated with the FlashInfer project. ·
+  <a href="https://github.com/rodrigch18/flashinfer-windows">Source</a> ·
+  <a href="https://github.com/rodrigch18/flashinfer-windows/discussions">Discussions</a> ·
+  <a href="https://rodrigch18.github.io/vllm-windows/">vLLM for Windows</a>
+</footer>
+
+<script>
+// Install commands; update FI on each release.
+const FI = "0.7.2.post1";
+const FREL = "https://github.com/rodrigch18/flashinfer-windows/releases/download/v" + FI + "/";
+document.getElementById("install-cmd").textContent = [
+  "py -3.12 -m venv .venv",
+  ".venv\\Scripts\\activate",
+  "pip install torch==2.14.1 torchvision==0.29.1 --index-url https://download.pytorch.org/whl/cu132",
+  "pip install " + FREL + "flashinfer_python-" + FI + "-py3-none-any.whl ^",
+  "  " + FREL + "flashinfer_jit_cache_sm120f-" + FI + "-cp39-abi3-win_amd64.whl ^",
+  "  " + FREL + "flashinfer_jit_cache-" + FI + "-cp39-abi3-win_amd64.whl ^",
+  "  flashinfer-cubin==" + FI + " --extra-index-url https://flashinfer.ai/whl/"
+].join("\n");
+document.querySelectorAll(".copy").forEach(b => b.addEventListener("click", async () => {
+  const text = b.parentElement.querySelector("code").textContent;
+  try { await navigator.clipboard.writeText(text); b.textContent = "Copied"; }
+  catch (e) { b.textContent = "Select & copy"; }
+  setTimeout(() => (b.textContent = "Copy"), 1500);
+}));
+</script>
+<noscript><p style="max-width:880px;margin:0 auto;padding:0 16px">Install commands need JavaScript; see the
+  <a href="https://github.com/rodrigch18/flashinfer-windows/releases/latest">release notes</a> instead.</p></noscript>
+</body>
+</html>
