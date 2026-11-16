@@ -237,6 +237,37 @@ def get_artifact(file_name: str, sha256: str, session=None) -> bytes:
 get_cubin = get_artifact
 
 
+def _is_link(path: pathlib.Path) -> bool:
+    return path.is_symlink() or (os.name == "nt" and path.is_junction())
+
+
+def remove_link_or_path(path: pathlib.Path) -> None:
+    """Remove a symlink/junction (never its target), a file, or a directory."""
+    if _is_link(path) or path.is_file():
+        os.unlink(path)
+    elif path.exists():
+        shutil.rmtree(path)
+
+
+def link_path(link: pathlib.Path, target: pathlib.Path) -> None:
+    """Symlink ``link`` -> ``target``.
+
+    Windows only allows symlinks with Developer Mode or admin rights, so fall
+    back to a directory junction (no privilege needed) or a file copy.
+    """
+    try:
+        link.symlink_to(target, target_is_directory=target.is_dir())
+    except OSError:
+        if os.name != "nt":
+            raise
+        if target.is_dir():
+            import _winapi
+
+            _winapi.CreateJunction(str(target.resolve()), str(link))
+        else:
+            shutil.copy2(target, link)
+
+
 def ensure_symlink(
     link: Union[str, pathlib.Path], target: Union[str, pathlib.Path]
 ) -> None:
@@ -253,15 +284,12 @@ def ensure_symlink(
     lock_path = str(link) + ".lock"
     lock = filelock.FileLock(lock_path, timeout=60)
     with lock:
-        if link.is_symlink() or link.exists():
-            if link.is_symlink() and link.resolve() == target.resolve():
+        if _is_link(link) or link.exists():
+            if _is_link(link) and link.resolve() == target.resolve():
                 return  # already correct
             # Stale symlink or directory from a previous version; remove it.
-            if link.is_symlink() or link.is_file():
-                link.unlink()
-            else:
-                shutil.rmtree(link)
-        link.symlink_to(target)
+            remove_link_or_path(link)
+        link_path(link, target)
 
 
 def verify_symlinked_headers(

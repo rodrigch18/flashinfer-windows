@@ -29,9 +29,10 @@ def _setup_output_directory(src_target: Path, gen_dir: Path):
     # Create symlink to csrc/fmha_v2/ directory
     src_link = gen_dir / "src"
 
-    if src_link.is_symlink() or src_link.exists():
-        src_link.unlink()
-    src_link.symlink_to(src_target, target_is_directory=True)
+    from ...cubin_loader import link_path, remove_link_or_path
+
+    remove_link_or_path(src_link)
+    link_path(src_link, src_target)
 
     (gen_dir / "generated").mkdir(exist_ok=True)
     (gen_dir / "bin").mkdir(exist_ok=True)

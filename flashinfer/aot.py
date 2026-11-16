@@ -1007,7 +1007,8 @@ def gen_all_modules(
             # implies CUDA >= 13.0, which avoids the bug.
             # SM90/SM12x users still get this via JIT.
             jit_specs.append(gen_dcp_alltoall_module())
-        if (
+        # dcp_lse_reduce links NCCL (multi-GPU), which has no Windows build.
+        if os.name != "nt" and (
             has_sm90
             or has_sm100
             or has_sm100f
@@ -1220,8 +1221,12 @@ def copy_built_kernels(
         shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True, exist_ok=False)
     for jit_spec in jit_specs:
-        src = jit_env.FLASHINFER_JIT_DIR / jit_spec.name / f"{jit_spec.name}.so"
-        dst = out_dir / jit_spec.name / f"{jit_spec.name}.so"
+        if os.name == "nt":
+            src = jit_env.FLASHINFER_JIT_DIR / jit_spec.name / f"{jit_spec.name}.dll"
+            dst = out_dir / jit_spec.name / f"{jit_spec.name}.dll"
+        else:
+            src = jit_env.FLASHINFER_JIT_DIR / jit_spec.name / f"{jit_spec.name}.so"
+            dst = out_dir / jit_spec.name / f"{jit_spec.name}.so"
         dst.parent.mkdir(exist_ok=False, parents=False)
         shutil.copy2(src, dst)
 
