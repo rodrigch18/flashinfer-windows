@@ -23,7 +23,7 @@
   "programmingLanguage": ["Python", "C++", "CUDA"],
   "runtimePlatform": "Windows x64",
   "license": "https://www.apache.org/licenses/LICENSE-2.0",
-  "version": "0.7.2.post1"
+  "version": "0.7.3"
 }
 </script>
 <script type="application/ld+json">
@@ -98,7 +98,7 @@ footer { margin-top: 64px; padding-top: 16px; padding-bottom: 40px; border-top: 
 </header>
 
 <main>
-<h2 id="wheels">Prebuilt wheels (FlashInfer 0.7.2.post1)</h2>
+<h2 id="wheels">Prebuilt wheels (FlashInfer 0.7.3)</h2>
 <table>
   <tr><th>Wheel</th><th>Contents</th></tr>
   <tr><td><code>flashinfer_python</code></td><td>FlashInfer Python package with the Windows JIT changes. Any NVIDIA GPU FlashInfer supports; kernels are compiled on first use.</td></tr>
@@ -134,7 +134,7 @@ footer { margin-top: 64px; padding-top: 16px; padding-bottom: 40px; border-top: 
 <h2 id="why">About this fork</h2>
 <ul>
   <li><strong>Reviewable:</strong> each release is the official upstream release tag plus exactly one squashed Windows commit
-    (<a href="https://github.com/flashinfer-ai/flashinfer/compare/v0.7.2.post1...rodrigch18:flashinfer-windows:flashinfer-for-windows">single diff</a>).
+    (<a href="https://github.com/flashinfer-ai/flashinfer/compare/v0.7.3...rodrigch18:flashinfer-windows:flashinfer-for-windows">single diff</a>).
     Linux behavior is identical to upstream.</li>
   <li><strong>Credits:</strong> the Windows changes started from <a href="https://github.com/SystemPanic/flashinfer-windows">SystemPanic/flashinfer-windows</a>
     and were audited down to what Windows needs.</li>
@@ -164,7 +164,7 @@ footer { margin-top: 64px; padding-top: 16px; padding-bottom: 40px; border-top: 
 
 <script>
 // Install commands; update FI on each release.
-const FI = "0.7.2.post1";
+const FI = "0.7.3";
 const FREL = "https://github.com/rodrigch18/flashinfer-windows/releases/download/v" + FI + "/";
 document.getElementById("install-cmd").textContent = [
   "py -3.12 -m venv .venv",
